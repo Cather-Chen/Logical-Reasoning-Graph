@@ -1,4 +1,4 @@
-code for the paper "Modeling Hierarchical Logical Reasoning Chains\url{https://aclanthology.org/2022.coling-1.126.pdf}".
+code for the paper "Modeling Hierarchical Logical Reasoning Chains https://aclanthology.org/2022.coling-1.126.pdf".
 
 ## Requirements
 
