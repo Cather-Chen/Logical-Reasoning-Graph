@@ -31,7 +31,7 @@ class SCAttention(nn.Module) :
         alpha = masked_softmax(scores, mask)  # [bsz,n,m]
         output = torch.bmm(alpha, Wq)  # [bsz,m,emd]
         output = nn.ReLU()(self.map_linear(output))
-        return output    # 实质是A关于B计算attention后的增量
+        return output 
 
 def masked_softmax(vector: torch.Tensor, mask: torch.Tensor, dim: int = -1) -> torch.Tensor:
     """
@@ -59,14 +59,3 @@ def masked_softmax(vector: torch.Tensor, mask: torch.Tensor, dim: int = -1) -> t
         result = result * mask
         result = result / (result.sum(dim=dim, keepdim=True) + 1e-13)
     return result
-
-# questions = np.random.randn(32, 384, 1024) # batch_size （question_num) , len of question, dim
-# facts = np.random.randn(32, 15, 1024)  # batch_size （fac_num) , len of fact, dim
-# questions = torch.Tensor(questions)
-# facts = torch.Tensor(facts)
-# fact_mask = torch.Tensor(32, 15).fill_(1)  # global attention
-#
-# sc_attention = SCAttention(1024, 1024)  # input size --> hidden size
-# output = sc_attention(questions, facts, fact_mask)
-# questions = questions + output  # batch_size （question_num) , dim
-# print(questions.size())
