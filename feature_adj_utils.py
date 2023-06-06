@@ -23,8 +23,6 @@ def load_and_cache_examples(args,tokenizer,arg_tokenizer, evaluate=False, test=F
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    # processors = {"race": RaceProcessor, "swag": SwagProcessor, "arc": ArcProcessor, "reclor": ReclorProcessor}
-    # 返回一个key+value
     processor = processors['reclor']()
     # Load data features from cache or dataset file
     if evaluate:
@@ -42,7 +40,6 @@ def load_and_cache_examples(args,tokenizer,arg_tokenizer, evaluate=False, test=F
             str(args.max_seq_length),
         ),
     )
-    #若之前已缓存，则直接读取，若未缓存，则先缓存再读取。
     if os.path.exists(cached_features_file) and not args.overwrite_cache:
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
@@ -187,7 +184,7 @@ class InputExample(object):
         self.label = label
 
 
-class InputFeatures(object):  #构建一个样例 包含1context+4answers
+class InputFeatures(object):
     def __init__(self, example_id, input_ids, attention_mask,passage_mask,question_mask,
                  argument_bpe_ids, domain_bpe_ids,punct_bpe_ids,keywordids,keymask,
                  SVO_ids,SVO_mask,key_segid,adj_of_choice,label, token_type_ids):
