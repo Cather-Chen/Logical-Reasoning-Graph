@@ -21,5 +21,6 @@ Download the dataset and extract it, or to use it directly in the directory `dat
 ## How to Run
 
 sh run_reclor.sh
+
 sh run_logi.sh
 
