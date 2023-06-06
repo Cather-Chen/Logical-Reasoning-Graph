@@ -103,7 +103,6 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
                 key_tokens_.append(t)
         return idfs_ngram, key_tokens_[:5]
 
-    #以max_gram为最大窗口长度，搜寻context中属于衔接词（relations）的n-gram
     def _find_arg_ngrams(tokens, max_gram):
         '''
         return:
@@ -127,17 +126,7 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
 
         return argument_words, argument_ids
 
-    def _find_dom_ngrams_2(tokens, max_gram):  #对sentence进行n-gram切分，并赋id（排除stopwords和SEP）
-        '''
-        1. 判断 stopwords 和 sep token
-        2. 先遍历一遍，记录 n-gram 的重复次数和出现位置
-        3. 遍历记录的 n-gram, 过滤掉 n-gram 子序列（直接比较 str）
-        4. 赋值 domain_ids.
-        return:
-            domain_words_stemmed: dict key = {words_stemmed},value = list[(start, end),(start, end),(start, end)...]
-            domain_words_orin: dict key = {origin words},value = list[(start, end),(start, end),(start, end)...]
-            domain_ids = [0,0,1,1,1,2,2,3,3,3,3,1,1,1,……]   same ids mean the same n-gram
-        '''
+    def _find_dom_ngrams_2(tokens, max_gram): 
         stemmed_tokens = [token_stem(token) for token in tokens]
 
         ''' 1 & 2'''
@@ -157,24 +146,17 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
                 orin_ngram = " ".join(orin_span)
 
                 if is_uselessword(stemmed_span): continue
-
-                # if _is_stopwords(orin_ngram, stopwords): continue #跳出本次循环，进入下一次循环
-                # if _head_tail_is_stopwords(orin_span, stopwords): continue
-                # if _with_septoken(orin_ngram, tokenizer): continue
-
                 if not stemmed_ngram in d_ngram:
                     d_ngram[stemmed_ngram] = []
                 d_ngram[stemmed_ngram].append((window_start, window_end))
 
         ''' 3 '''
-        d_ngram = dict(filter(lambda e: len(e[1]) > 1, d_ngram.items())) #留下 value list 元素大于1的项
+        d_ngram = dict(filter(lambda e: len(e[1]) > 1, d_ngram.items())) 
         raw_domain_words = list(d_ngram.keys())
-        raw_domain_words.sort(key=lambda s: len(s), reverse=True)  # sort by len(str).
+        raw_domain_words.sort(key=lambda s: len(s), reverse=True) 
         domain_words_to_remove = []
         for i in range(0, len(d_ngram)):
             for j in range(i+1, len(d_ngram)):
-                # if raw_domain_words[i] in raw_domain_words[j]:
-                #     domain_words_to_remove.append(raw_domain_words[i])
                 if raw_domain_words[j] in raw_domain_words[i]:
                     domain_words_to_remove.append(raw_domain_words[j])
         for r in domain_words_to_remove:
@@ -188,7 +170,7 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
             d_id += 1
             for start, end in start_end_list:
                 domain_ids[start:end] = [d_id] * (end - start)
-                rebuilt_orin_ngram = " ".join(tokens[start: end])  #str格式
+                rebuilt_orin_ngram = " ".join(tokens[start: end]) 
                 if not stemmed_ngram in domain_words_stemmed:
                     domain_words_stemmed[stemmed_ngram] = []
                 if not rebuilt_orin_ngram in domain_words_orin:
@@ -207,7 +189,6 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
     bpe_tokens_b = tokenizer.tokenize(text_b)
     bpe_tokens = [tokenizer.bos_token] + bpe_tokens_a + [tokenizer.sep_token]*2 + \
                  bpe_tokens_b + [tokenizer.eos_token]
-    #begin + text_a + sep + text_b + end  token list中元素均为数字
     a_mask = [1] * (len(bpe_tokens_a) + 2) + [0] * (max_length - (len(bpe_tokens_a) + 2))
     b_mask = [0] * (len(bpe_tokens_a) + 2) + [1] * (len(bpe_tokens_b) + 2) + [0] * (max_length - len(bpe_tokens))
     a_mask = a_mask[:max_length]
@@ -215,7 +196,6 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
     assert len(a_mask) == max_length, 'len_a_mask={}, max_len={}'.format(len(a_mask), max_length)
     assert len(b_mask) == max_length, 'len_b_mask={}, max_len={}'.format(len(b_mask), max_length)
 
-    # adapting Ġ.
     assert isinstance(bpe_tokens, list)
     bare_tokens = []
     for token in bpe_tokens:
@@ -228,9 +208,9 @@ def arg_tokenizer(text_a, text_b, tokenizer, stopwords, relations:dict, punctuat
     domain_words_stemmed, domain_words_orin, domain_space_ids = _find_dom_ngrams_2(bare_tokens, max_gram=max_gram)
     punct_space_ids = _find_punct(bare_tokens, punctuations)  
 
-    argument_bpe_ids = argument_space_ids #relations相关n-gram id
-    domain_bpe_ids = domain_space_ids  #全局n-gram id
-    punct_bpe_ids = punct_space_ids #punctions相关 id
+    argument_bpe_ids = argument_space_ids
+    domain_bpe_ids = domain_space_ids 
+    punct_bpe_ids = punct_space_ids 
 
     ''' output items '''
     input_ids = tokenizer.convert_tokens_to_ids(bpe_tokens)
