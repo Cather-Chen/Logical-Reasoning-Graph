@@ -62,7 +62,7 @@ class MyHGAT(BertPreTrainedModel):
 
         def _consecutive(seq: list, vals: np.array):
             groups_seq = []
-            output_vals = copy.deepcopy(vals)  #复制一个与原先独立的变量
+            output_vals = copy.deepcopy(vals)
             for k, g in groupby(enumerate(seq), lambda x: x[0] - x[1]):
                 groups_seq.append(list(map(itemgetter(1), g)))
             output_seq = []
@@ -123,9 +123,6 @@ class MyHGAT(BertPreTrainedModel):
         encoded_spans = [torch.stack(lst, dim=0) for lst in encoded_spans]
         encoded_spans = torch.stack(encoded_spans, dim=0)
         encoded_spans = encoded_spans.to(device).float()
-
-        # Truncate head and tail of each list in edges HERE.
-        #     Because the head and tail edge DO NOT contribute to the argument graph and punctuation graph.
         truncated_edges = [item[1:-1] for item in edges]
 
         return encoded_spans, span_masks, truncated_edges, node_in_seq_indices
@@ -140,34 +137,34 @@ class MyHGAT(BertPreTrainedModel):
                 - edges:list[list[str]]. len_out=(bsz x n_choices), len_in=n_edges. value={-1, 0, 1, 2, 3, 4, 5}.
 
             Note: relation patterns
-                1 - (relation, head, tail)  关键词在句首
-                2 - (head, relation, tail)  关键词在句中，先因后果
-                3 - (tail, relation, head)  关键词在句中，先果后因
-                4 - (head, relation, tail) & (tail, relation, head)  (1) argument words 中的一些关系
-                5 - (head, relation, tail) & (tail, relation, head)  (2) punctuations
+                1 - (relation, head, tail) 
+                2 - (head, relation, tail) 
+                3 - (tail, relation, head)
+                4 - (head, relation, tail) & (tail, relation, head) 
+                5 - (head, relation, tail) & (tail, relation, head) 
 
         '''
 
         batch_size = len(edges)
         argument_graph = torch.zeros(
-            (batch_size, n_nodes, n_nodes))  # NOTE: the diagonal should be assigned 0 since is acyclic graph.
+            (batch_size, n_nodes, n_nodes)) 
         punct_graph = torch.zeros(
-            (batch_size, n_nodes, n_nodes))  # NOTE: the diagonal should be assigned 0 since is acyclic graph.
+            (batch_size, n_nodes, n_nodes))  
         for b, sample_edges in enumerate(edges):
             for i, edge_value in enumerate(sample_edges):
-                if edge_value == 1:  # (relation, head, tail)  关键词在句首. Note: not used in graph_version==4.0.
+                if edge_value == 1:  
                     try:
                         argument_graph[b, i + 1, i + 2] = 1
                     except Exception:
                         pass
-                elif edge_value == 2:  # (head, relation, tail)  关键词在句中，先因后果. Note: not used in graph_version==4.0.
+                elif edge_value == 2:  
                     argument_graph[b, i, i + 1] = 1
-                elif edge_value == 3:  # (tail, relation, head)  关键词在句中，先果后因. Note: not used in graph_version==4.0.
+                elif edge_value == 3:  
                     argument_graph[b, i + 1, i] = 1
-                elif edge_value == 4:  # (head, relation, tail) & (tail, relation, head) ON ARGUMENT GRAPH
+                elif edge_value == 4: 
                     argument_graph[b, i, i + 1] = 1
                     argument_graph[b, i + 1, i] = 1
-                elif edge_value == 5:  # (head, relation, tail) & (tail, relation, head) ON PUNCTUATION GRAPH
+                elif edge_value == 5:  
                     try:
                         punct_graph[b, i, i + 1] = 1
                         punct_graph[b, i + 1, i] = 1
@@ -222,7 +219,7 @@ class MyHGAT(BertPreTrainedModel):
                 embed_tensor = torch.mean(emb[t, start:end, :], dim=0)   # [fea_dim]
                 keytoken_list.append(flat_keyword_ids[t, start:end].detach().cpu().numpy())
                 embed.append(embed_tensor)
-            keytoken_batch.append(keytoken_list)  # [[[123,234,345],[456],.....],[],[],...]
+            keytoken_batch.append(keytoken_list)  
             embed_batch.append(embed)
         max_len = max(map(len, embed_batch))
         a = torch.zeros(emb.size(-1), dtype=emb.dtype, device=device)
@@ -248,7 +245,6 @@ class MyHGAT(BertPreTrainedModel):
         new_punct_bpe_ids = new_punct_id * flat_punct_bpe_ids  # punct_id: 1 -> 5. for incorporating with argument_bpe_ids.
         _flat_all_bpe_ids = flat_argument_bpe_ids + new_punct_bpe_ids
         overlapped_punct_argument_mask = (_flat_all_bpe_ids > new_punct_id).long()
-        # 若argument和punctuation 重叠了，则取 argument，若没重叠，则按原先记
         flat_all_bpe_ids = _flat_all_bpe_ids * (
                     1 - overlapped_punct_argument_mask) + flat_argument_bpe_ids * overlapped_punct_argument_mask
         assert flat_argument_bpe_ids.max().item() <= new_punct_id
@@ -323,8 +319,8 @@ class MyHGAT(BertPreTrainedModel):
         # padding_size = adj_SVO.size(-2)
 
         def get_cos_similar(v1, v2):
-            num = torch.dot(v1,v2).item() # 向量点乘
-            denom = torch.linalg.norm(v1).item() * torch.linalg.norm(v2).item()  # 求模长的乘积
+            num = torch.dot(v1,v2).item()
+            denom = torch.linalg.norm(v1).item() * torch.linalg.norm(v2).item()
             return num / denom if denom != 0 else 0
 
         for bs in range(bsz):
@@ -479,21 +475,6 @@ class MyHGAT(BertPreTrainedModel):
         sequence_output = corpus_outputs[0]  # shape =  (4*bsz, seq_length, embed_size)
         pooled_output = corpus_outputs[1]  # shape = (4*bsz, emb_size)
 
-        ## key phrase embedding + node truncation
-        # keyword_outputs = self.roberta(flat_keyword_ids, attention_mask=flat_keyword_mask)
-        # keyword_emb = keyword_outputs[0]  # (4*bsz, padding size=16, embed_size)
-        # keywords_feature, key_id_batch = self.create_keywords_feature(keyword_emb,flat_key_segid,flat_keyword_ids,device=self.device)
-        # #keytoken_batch: list(len=bsz) of list(len=max_nodes) of list(keytoken_num)
-        # KPH_node_mask = torch.zeros((len(key_id_batch), len(key_id_batch[0]))).to(self.device)  # [bsz,n_nodes]
-        # for bs in range(KPH_node_mask.size(0)):
-        #     for j in range(len(key_id_batch[bs])):  # list(len=bsz*4) of list(len=16+max_nodes) of list
-        #         if key_id_batch[bs][j] != []:
-        #             KPH_node_mask[bs, j] = 1
-        # words_truncation = int(max(KPH_node_mask.sum(1)).item())
-        # KPH_node_mask = KPH_node_mask[:, :words_truncation]
-        # keywords_feature = keywords_feature[:, :words_truncation, :]
-        # key_id_batch = [span[:words_truncation] for span in key_id_batch]
-
 
         # SVO embedding + node truncation
         SVO_outputs = self.roberta(flat_SVO_ids, attention_mask=flat_SVO_mask, token_type_ids=None)
@@ -532,12 +513,6 @@ class MyHGAT(BertPreTrainedModel):
         sent2sent_mask = (sent2sent_adj > 0)
         sent2sent_adj = torch.zeros_like(sent2sent_adj) * (~sent2sent_mask) + torch.ones_like(sent2sent_adj) * sent2sent_mask
         sent2sent_adj = sent2sent_adj.to(self.device)
-
-        # adj1 = torch.cat([sent2sent_adj,sent2word_adj],dim=2) # [bsz,ns,ns+nw]
-        # adj2 = torch.cat([word2sent_adj,words2words_adj],dim=2) # [bsz,nw,ns+nw]
-        # adj = torch.cat([adj1,adj2],dim=1) # [bsz,ns+nw,ns+nw]
-        # feature = torch.cat([encoded_spans, feature_word],dim=1)
-
         type_sent_adj = [sent2sent_adj, sent2word_adj]
         type_word_adj = [word2sent_adj,words2words_adj]
         adj_list = [type_sent_adj, type_word_adj]
@@ -552,16 +527,6 @@ class MyHGAT(BertPreTrainedModel):
         graph_info_vec = self.get_gcn_info_vector(node_in_seq_indices, sent_rep, size=sequence_output.size(), device=sequence_output.device)
         edu_update_sequence_output = self.gru(self.norm(sequence_output + graph_info_vec))
 
-        # sent_node_mask = sent_mask.unsqueeze(-1).repeat(1,1,sent_rep.size(-1))   #(bsz*4,n1_nodes,out_dim)
-        # sent_rep = torch.mul(sent_rep,sent_node_mask)
-        # word_rep = torch.mul(word_rep,word_node_mask)
-        # node_rep = torch.cat((sent_rep, word_rep),dim=1)   # mask后的(bsz*4,n1_nodes+n2_nodes,out_dim)
-        # node_rep = self.GAT(feature,adj)  # [bsz,n,hid_dim]
-        # q_mask = torch.Tensor(node_rep.size(0), node_rep.size(1)).fill_(1).to(self.device)
-        # q_mask = torch.cat([sent_mask, SVO_node_mask],dim=1)
-        # q_mask = sent_mask
-        # delta_att =self.attention(sequence_output, word_rep, SVO_node_mask).to(self.device)
-        # sequence_output = edu_update_sequence_output + delta_att # (bsz*4, seq_length, hidden_size)
 
         sequence_output = edu_update_sequence_output
         sequence_h2_weight = self._proj_sequence_h(sequence_output).squeeze(-1)  # (bsz, seq_length)
