@@ -1,4 +1,8 @@
-code for the paper [Modeling Hierarchical Logical Reasoning Chains](https://aclanthology.org/2022.coling-1.126.pdf)
+# Logical Reasoning Graph
+code for the paper [Modeling Hierarchical Logical Reasoning Chains](https://aclanthology.org/2022.coling-1.126.pdf), accepted by COLING2022
+
+## Abstract
+Machine reading comprehension (MRC) poses new challenges over logical reasoning, which aims to understand the implicit logical relations entailed in the given contexts and perform inference over them. Due to the complexity of logic, logical relations exist at different granularity levels. However, most existing methods of logical reasoning individually focus on either entity-aware or discourse-based information but ignore the hierarchical relations that may even have mutual effects. In this paper, we propose a holistic graph network (HGN) which deals with context at both discourse level and word level, as the basis for logical reasoning, to provide a more fine-grained relation extraction. Specifically, node-level and type-level relations, which can be interpreted as bridges in the reasoning process, are modeled by a hierarchical interaction mechanism to improve the interpretation of MRC systems. Experimental results on logical reasoning QA datasets (ReClor and LogiQA) and natural language inference datasets (SNLI and ANLI) show the effectiveness and generalization of our method, and in-depth analysis verifies its capability to understand complex logical relations.
 
 ## Requirements
 
