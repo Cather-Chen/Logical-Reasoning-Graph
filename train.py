@@ -268,7 +268,7 @@ def train(args, train_dataset, model, tokenizer):
                     tb_writer.add_scalar("training/loss", (tr_loss - logging_loss) / args.logging_steps, global_step)
                     logger.info(
                         "Average loss: %s, average acc: %s at global step: %s",
-                        str((tr_loss - logging_loss) / args.logging_steps),  # logging_steps次的平均loss
+                        str((tr_loss - logging_loss) / args.logging_steps), 
                         str(train_acc),
                         str(global_step),
                     )
