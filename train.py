@@ -54,19 +54,16 @@ def set_seed(args):
 
 def train(args, train_dataset, model, tokenizer):
     """ Train the model """
-    #在tensorboardX上记录
     if args.local_rank in [-1, 0]:
         str_list = str(args.output_dir).split('/')
         tb_log_dir = os.path.join('summaries', str_list[-1])
         tb_writer = SummaryWriter(tb_log_dir)
 
-    #train_batch_size = 每个gpu上的batchsize * gpu个数
     args.train_batch_size = args.per_gpu_train_batch_size * max(1, args.n_gpu)
     train_sampler = RandomSampler(train_dataset) if args.local_rank == -1 else DistributedSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler, batch_size=args.train_batch_size,
                                   num_workers=args.number_workers, pin_memory=torch.cuda.is_available())
 
-    #max_steps 代表迭代次数上限，<0代表无上限
     if args.max_steps > 0:
         t_total = args.max_steps
         args.num_train_epochs = args.max_steps // (len(train_dataloader) // args.gradient_accumulation_steps) + 1
@@ -75,7 +72,7 @@ def train(args, train_dataset, model, tokenizer):
         # args.num_train_epochs = 3（default）
 
     # Prepare optimizer and schedule (linear warmup and decay)
-    no_decay = ["bias", "LayerNorm.weight"]  #bias和norm层的weight不优化
+    no_decay = ["bias", "LayerNorm.weight"]
     optimizer_grouped_parameters = [
         {
             "params": [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)],
@@ -118,14 +115,13 @@ def train(args, train_dataset, model, tokenizer):
         args.train_batch_size
         * args.gradient_accumulation_steps
         * (torch.distributed.get_world_size() if args.local_rank != -1 else 1),
-    ) # 优化一次需要的样本batch_size
+    )
     logger.info("  Gradient Accumulation steps = %d", args.gradient_accumulation_steps)
     logger.info("  Total optimization steps = %d", t_total)
 
 
     def evaluate_model(train_preds, train_label_ids, tb_writer, args, model, tokenizer, best_steps, best_dev_acc,test=False, save_result=False):
-        """ 当前模型在dev上测试，若acc提高了，则更新模型参数 """
-        train_preds = np.argmax(train_preds, axis=1)   #softmax输出最可能的选项
+        train_preds = np.argmax(train_preds, axis=1) 
         train_acc = simple_accuracy(train_preds, train_label_ids)
         train_preds = None
         train_label_ids = None
@@ -176,12 +172,11 @@ def train(args, train_dataset, model, tokenizer):
                 rs = 'global_steps: {}; dev_acc: {}'.format(global_step, best_dev_acc)
                 f.write(rs)
                 tb_writer.add_text('best_results', rs, global_step)
-            # 每提高一次验证集表现则储存一次当前step作为best_step,更新best_dev_acc，并保存到主文件夹
-
+           
         return train_preds, train_label_ids, train_acc, best_steps, best_dev_acc
 
     def save_model(args, model, tokenizer):
-        output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))   #在第几步时储存的checkpoints
+        output_dir = os.path.join(args.output_dir, "checkpoint-{}".format(global_step))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
         model_to_save = (
@@ -194,7 +189,6 @@ def train(args, train_dataset, model, tokenizer):
         logger.info("Saving model checkpoint to %s", output_dir)
 
 
-    # 初始化
     global_step = 0
     tr_loss, logging_loss = 0.0, 0.0
     best_dev_acc = 0.0
@@ -204,11 +198,11 @@ def train(args, train_dataset, model, tokenizer):
     model.zero_grad()
     train_iterator = trange(int(args.num_train_epochs), desc="Epoch", disable=args.local_rank not in [-1, 0])
     set_seed(args)  # Added here for reproductibility
-    for _ in train_iterator:   # 生成10个epoch迭代器
+    for _ in train_iterator:  
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])
         for step, batch in enumerate(epoch_iterator):
             model.train()
-            batch = tuple(t.to(args.device) for t in batch)   # 数据分布到device上
+            batch = tuple(t.to(args.device) for t in batch)  
             input_ids =batch[0]
             attention_mask =batch[1]
             argument_bpe_ids =batch[4]
@@ -251,7 +245,6 @@ def train(args, train_dataset, model, tokenizer):
                     scaled_loss.backward()
                 if not args.no_clip_grad_norm:
                     torch.nn.utils.clip_grad_norm_(amp.master_params(optimizer), args.max_grad_norm)
-                    # 梯度剪切，规定了最大不能超过的max_norm
             else:
                 loss.backward()
                 if not args.no_clip_grad_norm:
@@ -260,12 +253,10 @@ def train(args, train_dataset, model, tokenizer):
                     #     print('-->name:', name, '-->grad_requirs:', parms.requires_grad, ' -->grad_value:', parms.grad)
             tr_loss += loss.item()
             if (step + 1) % args.gradient_accumulation_steps == 0:
-                # 梯度积累三次后优化下降
                 optimizer.step()
                 scheduler.step()  # Update learning rate schedule
                 model.zero_grad()
-                global_step += 1   # 全局steps
-                # 每args.logging_steps后输出一次evaluate结果
+                global_step += 1  
                 if args.local_rank in [-1, 0] and args.logging_steps > 0 and global_step % args.logging_steps == 0:
                     # Log metrics
                     if (
@@ -298,7 +289,6 @@ def train(args, train_dataset, model, tokenizer):
         save_model(args, model, tokenizer)
         tb_writer.close()
 
-    # 每logging_steps(200)次测试一次模型，不足200次的最终训练结果也保存一次
     return global_step, tr_loss / global_step, best_steps
 
 
@@ -518,7 +508,6 @@ def main():
             and args.do_train
             and not args.overwrite_output_dir
     ):
-        # os.listdir(xx): 返回指定路径下的文件和文件夹列表。
         raise ValueError(
             "Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(
                 args.output_dir
@@ -526,7 +515,6 @@ def main():
         )
 
     if args.server_ip and args.server_port:
-        # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
         import ptvsd
 
         print("Waiting for debugger attach")
@@ -553,7 +541,7 @@ def main():
         args.local_rank,
         device,
         args.n_gpu,
-        bool(args.local_rank != -1),  # args.local_rank = -1 代表无分布式训练
+        bool(args.local_rank != -1),
         args.fp16,
     )
 
@@ -567,7 +555,7 @@ def main():
     processor = processors[args.task_name]()
     label_list = processor.get_labels()
     num_labels = len(label_list)
-    if args.local_rank not in [-1, 0]:  # -1代表无分布式，0 代表非主进程，先暂停!
+    if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()
 
     config = config_class.from_pretrained(args.model_name_or_path,
@@ -593,11 +581,11 @@ def main():
         device=args.device,
         cache_dir=args.cache_dir if args.cache_dir else None
     )
-    if args.local_rank == 0:   #主进程至此完成缓存，设置barrier，同时释放所有进程
+    if args.local_rank == 0:   
         torch.distributed.barrier()
 
     # model = MyHGAT(config, max_rel_id, feature_dim_list, device= args.device)
-    if args.local_rank == 0:   #主进程至此完成缓存，设置barrier，同时释放所有进程
+    if args.local_rank == 0: 
         torch.distributed.barrier()
     model.to(args.device)
 
