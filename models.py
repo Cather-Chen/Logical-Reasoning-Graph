@@ -39,8 +39,8 @@ class HGAT(nn.Module):
         super(HGAT, self).__init__()
         self.para_init()
         self.attention = True
-        self.lower_attention = True  #是否需要交叉type的attention
-        self.embedding = False  #是否需要先线性化映成同样维度的embedding
+        self.lower_attention = True  
+        self.embedding = False 
         self.write_emb = False
         dim_1st = nhid
         dim_2nd = out_dim
@@ -51,7 +51,7 @@ class HGAT(nn.Module):
 
         self.nonlinear = F.elu_
 
-        self.ntype = len(nfeat_list)   #nfeat_list=[d1,d2,d3] 表示三种type嵌入的维度
+        self.ntype = len(nfeat_list)  
         if self.embedding:
             self.mlp = nn.ModuleList()
             n_in = [nhid for _ in range(self.ntype)]
@@ -104,7 +104,6 @@ class HGAT(nn.Module):
         
         if not self.lower_attention:
             x1 = [None for _ in range(self.ntype)]
-            # 第一层gat，与第一层后的dropout
             for t1 in range(self.ntype):
                 x_t1 = []
                 for t2 in range(self.ntype):
@@ -127,10 +126,6 @@ class HGAT(nn.Module):
                 x_t1 = x1_in[t1]  #list of tensor:size = (bsz*4,n_nodes, dim1)
                 if self.attention:
                     x_t1, weights = self.at1[t1](torch.stack(x_t1, dim=1)) #stack: (bsz*4, 2,n_nodes,dim1)
-                    #x_t1: tensor(bsz * 4, n_nodes, dim1)
-                    #weights: tensor(bsz * 4, n_nodes, 2, 1)
-                    # if t1 == 0:
-                        # self.f.write('{0}\t{1}\t{2}\n'.format(weights[0][0].item(), weights[0][1].item(), weights[0][2].item()))
                 else:
                     x_t1 = reduce(torch.add, x_t1)
                 # x_t1 = self.norm1(x_t1)
@@ -141,21 +136,20 @@ class HGAT(nn.Module):
             self.emb = x1[0]        
         
         x2 = [None for _ in range(self.ntype)]
-        # 第二层gcn，与第二层后的softmax
         for t1 in range(self.ntype):
             x_t1 = []
             for t2 in range(self.ntype):
                 if adj_list[t1][t2] is None:
                     continue
-                x_t1.append(self.gc2[0](x1[t2], adj_list[t1][t2]))  #append(tensor(bsz * 4, n_nodes, dim2))
+                x_t1.append(self.gc2[0](x1[t2], adj_list[t1][t2]))
             if self.attention:
-                x_t1, weights = self.at2[t1](torch.stack(x_t1, dim=1))  #stack: (bsz*4, 2,n_nodes,dim2)  --> tensor(bsz * 4, n_nodes, dim2)
+                x_t1, weights = self.at2[t1](torch.stack(x_t1, dim=1))  
             else:
                 x_t1 = reduce(torch.add, x_t1)
 
             x_t1 = F.dropout(x_t1, self.dropout, training=self.training)
             x_t1 = self.nonlinear(x_t1)
-            x2[t1] = x_t1    #tensor(bsz * 4, n_nodes, dim2)
+            x2[t1] = x_t1   
         return x2
 
 
